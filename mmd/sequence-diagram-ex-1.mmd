@@ -1,0 +1,122 @@
+sequenceDiagram
+    participant U as User
+    participant UI as Web UI
+    participant API as API Gateway
+    participant Auth as Auth Service
+    participant Cart as Cart Service
+    participant Inv as Inventory Service
+    participant Pay as Payment Service
+    participant Order as Order Service
+    participant Email as Email Service
+    participant DB as Database
+
+    Note over U, DB: E-commerce Order Processing Flow
+    
+    U->>UI: Browse products
+    UI->>API: GET /products
+    API->>Inv: Check inventory
+    Inv-->>API: Product list with stock
+    API-->>UI: Products data
+    UI-->>U: Display products
+
+    Note over U, Cart: User Authentication and Cart Management
+    U->>UI: Add item to cart
+    UI->>API: POST /cart/add
+    API->>Auth: Validate token
+    Auth-->>API: Token valid
+    
+    alt Token Valid
+        API->>Cart: Add item to cart
+        Cart->>DB: Update cart data
+        DB-->>Cart: Success
+        Cart-->>API: Item added
+        API-->>UI: Success response
+        UI-->>U: Item added confirmation
+    else Token Invalid
+        API-->>UI: 401 Unauthorized
+        UI-->>U: Please login
+    end
+
+    loop For each cart item
+        U->>UI: Update quantity
+        UI->>API: PUT /cart/item
+        API->>Cart: Update quantity
+        Cart->>Inv: Check availability
+        
+        alt Item available
+            Inv-->>Cart: Available
+            Cart->>DB: Update cart
+            DB-->>Cart: Updated
+            Cart-->>API: Success
+            API-->>UI: Updated
+            UI-->>U: Quantity updated
+        else Item unavailable
+            Inv-->>Cart: Out of stock
+            Cart-->>API: Out of stock error
+            API-->>UI: Stock error
+            UI-->>U: Item out of stock
+        end
+    end
+
+    Note over U, Email: Checkout Process
+    U->>UI: Proceed to checkout
+    UI->>API: POST /checkout/start
+    API->>Auth: Validate session
+    Auth-->>API: Valid session
+    
+    par Prepare order data
+        API->>Cart: Get cart items
+        Cart->>DB: Fetch cart
+        DB-->>Cart: Cart data
+        Cart-->>API: Cart items
+    and Reserve inventory
+        API->>Inv: Reserve items
+        Inv->>DB: Lock inventory
+        DB-->>Inv: Reserved
+        Inv-->>API: Reservation ID
+    end
+    
+    API-->>UI: Checkout ready
+    UI-->>U: Show checkout form
+
+    U->>UI: Submit payment
+    UI->>API: POST /payment/process
+    API->>Pay: Process payment
+    Pay->>Pay: Validate card
+    
+    alt Payment successful
+        Pay-->>API: Payment confirmed
+        API->>Order: Create order
+        Order->>DB: Save order
+        DB-->>Order: Order saved
+        Order-->>API: Order created
+        
+        par Update inventory
+            API->>Inv: Confirm reservation
+            Inv->>DB: Update stock
+            DB-->>Inv: Stock updated
+            Inv-->>API: Confirmed
+        and Clear cart
+            API->>Cart: Clear cart
+            Cart->>DB: Empty cart
+            DB-->>Cart: Cart cleared
+            Cart-->>API: Cleared
+        and Send confirmation
+            API->>Email: Send order confirmation
+            Email-->>API: Email sent
+        end
+        
+        API-->>UI: Order success
+        UI-->>U: Order confirmation
+        
+    else Payment failed
+        Pay-->>API: Payment failed
+        API->>Inv: Release reservation
+        Inv->>DB: Unlock inventory
+        DB-->>Inv: Released
+        Inv-->>API: Released
+        API-->>UI: Payment error
+        UI-->>U: Payment failed
+    end
+
+    Note over U, DB: Order Complete
