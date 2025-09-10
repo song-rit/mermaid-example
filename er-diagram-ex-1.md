@@ -1,0 +1,218 @@
+```mermaid
+erDiagram
+    %% ===================== ENTITIES =====================
+    CUSTOMER {
+        int customer_id PK
+        string email UK
+        string phone
+        string full_name
+        date registered_at
+        string status  "ACTIVE|SUSPENDED"
+    }
+
+    CUSTOMER_KYC {
+        int kyc_id PK
+        int customer_id FK
+        string level   "BASIC|ENHANCED"
+        date verified_at
+        string verifier
+        string status  "PENDING|VERIFIED|REJECTED"
+    }
+
+    ADDRESS {
+        int address_id PK
+        int customer_id FK
+        string line1
+        string line2
+        string city
+        string state
+        string postal_code
+        string country_code FK
+        bool is_default
+    }
+
+    COUNTRY {
+        string country_code PK
+        string name
+        string currency_code FK
+    }
+
+    CURRENCY {
+        string currency_code PK
+        string currency_name
+        int minor_units
+    }
+
+    MERCHANT {
+        int merchant_id PK
+        string merchant_name
+        string category
+        string status "ACTIVE|INACTIVE"
+        int settlement_days
+    }
+
+    PRODUCT {
+        int product_id PK
+        int merchant_id FK
+        string sku UK
+        string name
+        string description
+        decimal price
+        string currency_code FK
+        bool active
+    }
+
+    INVENTORY {
+        int inventory_id PK
+        int product_id FK
+        int warehouse_id FK
+        int quantity
+        date updated_at
+    }
+
+    WAREHOUSE {
+        int warehouse_id PK
+        string name
+        string region
+        string timezone
+    }
+
+    "ORDER" {
+        int order_id PK
+        int customer_id FK
+        int merchant_id FK
+        string status "NEW|PAID|FULFILLED|CANCELLED|REFUNDED|PARTIAL"
+        decimal order_total
+        string currency_code FK
+        date created_at
+        date updated_at
+    }
+
+    ORDER_ITEM {
+        int order_item_id PK
+        int order_id FK
+        int product_id FK
+        int quantity
+        decimal unit_price
+        decimal line_total
+    }
+
+    PAYMENT {
+        int payment_id PK
+        int order_id FK
+        string method "CARD|BANK|WALLET"
+        string status "INIT|AUTHORIZED|CAPTURED|DECLINED|REFUNDED|PARTIAL"
+        decimal amount
+        string currency_code FK
+        date authorized_at
+        date captured_at
+    }
+
+    CARD {
+        int card_id PK
+        int customer_id FK
+        string network "VISA|MASTERCARD|AMEX"
+        string last4
+        int exp_month
+        int exp_year
+        string token UK
+    }
+
+    SHIPMENT {
+        int shipment_id PK
+        int order_id FK
+        int warehouse_id FK
+        int carrier_id FK
+        string tracking_no UK
+        string status "READY|DISPATCHED|IN_TRANSIT|DELIVERED|RETURNED"
+        date dispatched_at
+        date delivered_at
+    }
+
+    CARRIER {
+        int carrier_id PK
+        string name
+        string service_level "STD|EXPRESS|SAME_DAY"
+    }
+
+    RETURN {
+        int return_id PK
+        int order_id FK
+        string reason
+        string status "REQUESTED|APPROVED|REJECTED|RECEIVED|REFUNDED"
+        date requested_at
+        date processed_at
+    }
+
+    REFUND {
+        int refund_id PK
+        int payment_id FK
+        int return_id FK
+        decimal amount
+        string status "PENDING|APPROVED|SENT|FAILED"
+        date created_at
+        date settled_at
+    }
+
+    FX_RATE {
+        int fx_id PK
+        string base_currency FK
+        string quote_currency FK
+        decimal rate
+        date as_of
+    }
+
+    COUPON {
+        int coupon_id PK
+        string code UK
+        decimal value
+        string type "AMOUNT|PERCENT"
+        string currency_code FK
+        date valid_from
+        date valid_to
+        bool active
+    }
+
+    ORDER_COUPON {
+        int order_id FK
+        int coupon_id FK
+        decimal applied_value
+    }
+
+    %% ===================== RELATIONSHIPS =====================
+
+    CUSTOMER ||--o{ CUSTOMER_KYC : has
+    CUSTOMER ||--o{ ADDRESS : "has"
+    COUNTRY  ||--o{ ADDRESS : "is used by"
+    CURRENCY ||--o{ COUNTRY : "denominates"
+    MERCHANT ||--o{ PRODUCT : "lists"
+    PRODUCT  ||--o{ ORDER_ITEM : "appears in"
+    "ORDER"  ||--o{ ORDER_ITEM : "contains"
+    CUSTOMER ||--o{ "ORDER" : "places"
+    MERCHANT ||--o{ "ORDER" : "receives"
+
+    "ORDER"  ||--|| PAYMENT : "paid by"
+    PAYMENT  ||--o{ REFUND : "has"
+    RETURN   ||--|| REFUND : "triggers"
+
+    CUSTOMER ||--o{ CARD : "owns"
+    CARD     }o--|| PAYMENT : "authorizes"
+
+    PRODUCT  ||--o{ INVENTORY : "stocked"
+    WAREHOUSE ||--o{ INVENTORY : "holds"
+    "ORDER"  ||--o{ SHIPMENT : "ships via"
+    WAREHOUSE ||--o{ SHIPMENT : "origin"
+    CARRIER  ||--o{ SHIPMENT : "handles"
+
+    "ORDER"  ||--o{ RETURN : "may have"
+
+    CURRENCY ||--o{ "ORDER" : "denominates"
+    CURRENCY ||--o{ PAYMENT : "denominates"
+    CURRENCY ||--o{ PRODUCT : "denominates"
+    CURRENCY ||--o{ COUPON : "denominates"
+
+    COUPON ||--o{ ORDER_COUPON : ""
+    "ORDER" ||--o{ ORDER_COUPON : ""
+
+    CURRENCY ||--o{ FX_RATE : "base or quote"
+    FX_RATE  }o--|| CURRENCY : "pairs"
